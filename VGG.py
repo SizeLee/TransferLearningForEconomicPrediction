@@ -13,21 +13,22 @@ import numpy as np
 from scipy.misc import imread, imresize
 from imagenet_classes import class_names
 import datapreprocess
+import time
 
 class vgg16:
     def __init__(self, im_size_channel, labeldim, imgs_mean, weights=None):
         self.sess = None
         self.im_size_channel = im_size_channel
         self.labeldim = labeldim
-        batchsize = 32
+        # batchsize = 2
 
         ###here set dataset node structure
-        self.features_placeholder = tf.placeholder(tf.float32, [None, im_size_channel[0], im_size_channel[1], im_size_channel[2]])
-        self.labels_placeholder = tf.placeholder(tf.float32, [None, self.labeldim])
-        self.data = tf.data.Dataset.from_tensor_slices((self.features_placeholder, self.labels_placeholder))
-        self.batched_data = self.data.batch(batchsize)
-        self.iterator = self.batched_data.make_initializable_iterator()
-        self.next_element = self.iterator.get_next()
+        # self.features_placeholder = tf.placeholder(tf.float32, [None, im_size_channel[0], im_size_channel[1], im_size_channel[2]])
+        # self.labels_placeholder = tf.placeholder(tf.float32, [None, self.labeldim])
+        # self.data = tf.data.Dataset.from_tensor_slices((self.features_placeholder, self.labels_placeholder))
+        # self.batched_data = self.data.batch(batchsize)
+        # self.iterator = self.batched_data.make_initializable_iterator()
+        # self.next_element = self.iterator.get_next()
 
         ###here set vgg net structure
         self.imgs = tf.placeholder(tf.float32, [None, im_size_channel[0], im_size_channel[1], im_size_channel[2]])
@@ -242,7 +243,7 @@ class vgg16:
 
     def fc_layers(self):
         # fc1
-        midsize = 128 #4096 todo here to switch to 4096 size when working with better gpu card
+        midsize = 1024 #4096 todo here to switch to 4096 size when working with better gpu card
         with tf.name_scope('dropout_parameter'):
             self.dropout_keepprob = tf.placeholder(tf.float32, name='keepprob')
 
@@ -283,7 +284,7 @@ class vgg16:
 
 
 
-    def training(self, epoch, imgs, labels, batchsize, sess):
+    def training(self, epoch, imgs, labels, batch_size, sess):
         if self.sess is not None:
             self.sess.close()
 
@@ -291,37 +292,89 @@ class vgg16:
 
         # Compute for trainround epochs.
         self.sess.run(self.init_variables)
+        self.sess.graph.finalize()
+
+        sampleNum = labels.shape[0]
+        train_steps = int(sampleNum / batch_size)
         for i in range(epoch):
-            sess.run(self.iterator.initializer, feed_dict={self.features_placeholder: imgs,
-                                                           self.labels_placeholder: labels})
-            count = 0
-            while True:
-                try:
-                    count += 1
-                    print(count)
-                    x, y = self.sess.run(self.next_element, feed_dict={self.features_placeholder: imgs,
-                                                                       self.labels_placeholder: labels})
-                    self.sess.run(self.train_step, feed_dict={self.imgs: x,
-                                                              self.labels: y,
-                                                              self.dropout_keepprob: 0.5})
-                except tf.errors.OutOfRangeError:
-                    break
+            # todo unknown reason, gpu memory leak out
+            # sess.run(self.iterator.initializer, feed_dict={self.features_placeholder: imgs,
+            #                                                self.labels_placeholder: labels})
+            # count = 0
+            # while True:
+            #     try:
+            #         count += 1
+            #         print(count)
+            #         x, y = self.sess.run(self.next_element)
+            #         self.sess.run(self.train_step, feed_dict={self.imgs: x,
+            #                                                   self.labels: y,
+            #                                                   self.dropout_keepprob: 0.5})
+            #     except tf.errors.OutOfRangeError:
+            #         break
 
-            if i%10 == 0:
-                loss, accuracy = self.sess.run([self.loss, self.accuracy], feed_dict={self.imgs: imgs,
-                                                                                      self.labels: labels,
-                                                                                      self.dropout_keepprob: 1})
-                print(loss, accuracy)
+            for j in range(train_steps):
+                self.sess.run(self.train_step,
+                              feed_dict={self.imgs: imgs[j * batch_size: (j + 1) * batch_size, :, :, :],
+                                         self.labels: labels[j * batch_size: (j + 1) * batch_size, :],
+                                         self.dropout_keepprob: 0.5})
+            if train_steps * batch_size != sampleNum:
+                self.sess.run(self.train_step, feed_dict={self.imgs: imgs[train_steps * batch_size:, :, :, :],
+                                                          self.labels: labels[train_steps * batch_size:, :],
+                                                          self.dropout_keepprob: 0.5})
+
+            if i%10 == 9:
+                batch_loss = []
+                batch_accuracy = []
+                for j in range(train_steps):
+                    loss, accuracy = self.sess.run([self.loss, self.accuracy],
+                                         feed_dict={self.imgs: imgs[j * batch_size: (j + 1) * batch_size, :, :, :],
+                                                    self.labels: labels[j * batch_size: (j + 1) * batch_size, :],
+                                                    self.dropout_keepprob: 1})
+                    batch_loss.append(loss)
+                    batch_accuracy.append(accuracy)
+                whole_loss = np.array(batch_loss).mean()
+                whole_accuracy = np.array(batch_accuracy).mean()
+
+                if train_steps * batch_size != sampleNum:
+                    loss, accuracy = self.sess.run([self.loss, self.accuracy],
+                                         feed_dict={self.imgs: imgs[train_steps * batch_size:, :, :, :],
+                                                    self.labels: labels[train_steps * batch_size:, :],
+                                                    self.dropout_keepprob: 1})
+                    whole_loss = (whole_loss * train_steps * batch_size +
+                                 loss * (sampleNum - train_steps * batch_size))/sampleNum
+                    whole_accuracy = (whole_accuracy * train_steps * batch_size +
+                                     accuracy * (sampleNum - train_steps * batch_size))/sampleNum
+
+                print(time.strftime('%Y-%m-%d %H:%M:%S'))
+                print(whole_accuracy, whole_loss)
+                print()
 
 
-    def testaccuracy(self, imgs, labels):
+    def testaccuracy(self, imgs, labels, batch_size):
         if self.sess is None:
             print('no session contain model')
             return
-        accuracy = self.sess.run(self.accuracy, feed_dict={self.imgs: imgs,
-                                                           self.labels: labels,
-                                                           self.dropout_keepprob: 1})
-        print(accuracy)
+
+        sampleNum = labels.shape[0]
+        test_steps = int(sampleNum / batch_size)
+        batch_accuracy = []
+        for j in range(test_steps):
+            accuracy = self.sess.run(self.accuracy,
+                                     feed_dict={self.imgs: imgs[j * batch_size: (j + 1) * batch_size, :, :, :],
+                                                self.labels: labels[j * batch_size: (j + 1) * batch_size, :],
+                                                self.dropout_keepprob: 1})
+            batch_accuracy.append(accuracy)
+        whole_accuracy = np.array(batch_accuracy).mean()
+
+        if test_steps * batch_size != sampleNum:
+            accuracy = self.sess.run(self.accuracy,
+                                     feed_dict={self.imgs: imgs[test_steps * batch_size:, :, :, :],
+                                                self.labels: labels[test_steps * batch_size:, :],
+                                                self.dropout_keepprob: 1})
+            whole_accuracy = (whole_accuracy * test_steps * batch_size +
+                             accuracy * (sampleNum - test_steps * batch_size)) / sampleNum
+
+        return whole_accuracy
 
 
     def load_weights(self, weight_file, sess):
@@ -335,11 +388,15 @@ class vgg16:
 if __name__ == '__main__':
     # imgs = tf.placeholder(tf.float32, [None, 224, 224, 3])
     data = datapreprocess.datacontainer(0.7)
+    vgg = vgg16(data.getimgsize(), data.getlabeldim(), data.getTrainMean())  # 'vgg16_weights.npz'
     with tf.Session() as sess:
-        vgg = vgg16(data.getimgsize(), data.getlabeldim(), data.getTrainMean()) #'vgg16_weights.npz'
-
-        vgg.training(1, data.trainimgs, data.trainlabels, 32, sess)
-        vgg.testaccuracy(data.testimgs, data.testlabels)
+        start = time.time()
+        print(time.strftime('%Y-%m-%d %H:%M:%S'))
+        vgg.training(1000, data.trainimgs, data.trainlabels, 1, sess)
+        print(vgg.testaccuracy(data.testimgs, data.testlabels, 1))
+        end = time.time()
+        print(time.strftime('%Y-%m-%d %H:%M:%S'))
+        print('total time: ', end - start, 's')
 
         # img1 = imread('laska.png', mode='RGB')
         # img1 = imresize(img1, (224, 224))

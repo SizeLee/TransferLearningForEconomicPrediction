@@ -14,7 +14,7 @@ class datacontainer:
             imgstemp = []
             labelstemp = []
             filelist = os.listdir(path[i])
-            for each in filelist[:50]:  #####todo here to limit the data size
+            for each in filelist[:]:  #####todo here to limit the data size
                 im = imread(path[i] + '/' + each, mode='RGB')
                 imgstemp.append(im)
                 label = [0 for _ in range(nlkind)]
@@ -57,7 +57,7 @@ class datacontainer:
         l = len(self.trainimgs)
         shuffleindex = [j for j in range(l)]
         random.shuffle(shuffleindex)
-        self.trainimgs = self.trainimgs[shuffleindex, :]
+        self.trainimgs = self.trainimgs[shuffleindex, :, :, :]
         self.trainlabels = self.trainlabels[shuffleindex, :]
 
         # print(111)

@@ -9,6 +9,7 @@
 *.csv
 *.json
 /data/
+*.npz
 
 # draft file for test grammer
 pydraft.py

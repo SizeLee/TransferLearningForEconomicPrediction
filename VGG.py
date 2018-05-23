@@ -15,7 +15,7 @@ from imagenet_classes import class_names
 import datapreprocess
 
 class vgg16:
-    def __init__(self, im_size_channel, labeldim, weights=None):
+    def __init__(self, im_size_channel, labeldim, imgs_mean, weights=None):
         self.sess = None
         self.im_size_channel = im_size_channel
         self.labeldim = labeldim
@@ -31,7 +31,7 @@ class vgg16:
 
         ###here set vgg net structure
         self.imgs = tf.placeholder(tf.float32, [None, im_size_channel[0], im_size_channel[1], im_size_channel[2]])
-        self.convlayers()
+        self.convlayers(imgs_mean)
         self.fc_layers()
         self.probs = tf.nn.softmax(self.fc3l)
 
@@ -54,12 +54,12 @@ class vgg16:
             correct_prediction = tf.equal(tf.argmax(self.probs, axis=1), tf.argmax(self.labels, axis=1))
             self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
-    def convlayers(self):
+    def convlayers(self, imgs_mean):
         self.parameters = []
 
         # zero-mean input  ###todo mean value should be satellite data set or can be transferred, need test
         with tf.name_scope('preprocess') as scope:
-            mean = tf.constant([123.68, 116.779, 103.939], dtype=tf.float32, shape=[1, 1, 1, 3], name='img_mean')
+            mean = tf.constant(imgs_mean, dtype=tf.float32, shape=[1, 1, 1, 3], name='img_mean') #imgnet[123.68, 116.779, 103.939]
             images = self.imgs-mean
 
         # conv1_1
@@ -336,11 +336,11 @@ if __name__ == '__main__':
     # imgs = tf.placeholder(tf.float32, [None, 224, 224, 3])
     data = datapreprocess.datacontainer(0.7)
     with tf.Session() as sess:
-        vgg = vgg16(data.getimgsize(), data.getlabeldim()) #'vgg16_weights.npz'
+        vgg = vgg16(data.getimgsize(), data.getlabeldim(), data.getTrainMean()) #'vgg16_weights.npz'
 
         vgg.training(1, data.trainimgs, data.trainlabels, 32, sess)
         vgg.testaccuracy(data.testimgs, data.testlabels)
-        
+
         # img1 = imread('laska.png', mode='RGB')
         # img1 = imresize(img1, (224, 224))
         #

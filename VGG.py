@@ -418,6 +418,9 @@ class vgg16:
         feature = self.sess.run(self.fc2, feed_dict={self.imgs: imgs})
         return feature
 
+    def getfeatureSize(self):
+        return self.fc2.get_shape()[1]
+
     def load_weights(self, weight_file, sess):
         weights = np.load(weight_file)
         keys = sorted(weights.keys())

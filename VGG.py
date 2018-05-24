@@ -284,7 +284,7 @@ class vgg16:
 
 
 
-    def training(self, epoch, imgs, labels, batch_size, sess):
+    def training(self, epoch, imgs, labels, batch_size, sess, savefilename):
         if self.sess is not None:
             self.sess.close()
 
@@ -349,6 +349,10 @@ class vgg16:
                 print(whole_accuracy, whole_loss)
                 print()
 
+        self.save_weights(savefilename)
+
+        return
+
 
     def testaccuracy(self, imgs, labels, batch_size):
         if self.sess is None:
@@ -384,6 +388,14 @@ class vgg16:
             print(i, k, np.shape(weights[k]))
             sess.run(self.parameters[i].assign(weights[k]))
 
+    def save_weights(self, savefilename):
+        ###save model
+        weights = []
+        for each in self.parameters:
+            weight = self.sess.run(each)
+            weights.append(weight)
+        np.savez(savefilename, *weights)
+
 
 if __name__ == '__main__':
     # imgs = tf.placeholder(tf.float32, [None, 224, 224, 3])
@@ -392,8 +404,8 @@ if __name__ == '__main__':
     with tf.Session() as sess:
         start = time.time()
         print(time.strftime('%Y-%m-%d %H:%M:%S'))
-        vgg.training(1000, data.trainimgs, data.trainlabels, 1, sess)
-        print(vgg.testaccuracy(data.testimgs, data.testlabels, 1))
+        vgg.training(1000, data.trainimgs, data.trainlabels, 2, sess, 'tweights.npz')
+        print(vgg.testaccuracy(data.testimgs, data.testlabels, 2))
         end = time.time()
         print(time.strftime('%Y-%m-%d %H:%M:%S'))
         print('total time: ', end - start, 's')

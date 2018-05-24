@@ -293,7 +293,6 @@ class vgg16:
             self.parameters += [fc3w, fc3b]
 
 
-
     def training(self, epoch, imgs, labels, batch_size, drop_keepprob, sess, savefilename, log_dir):
         if self.sess is not None:
             self.sess.close()
@@ -415,6 +414,9 @@ class vgg16:
 
         return whole_accuracy
 
+    def getfeature(self, imgs):
+        feature = self.sess.run(self.fc2, feed_dict={self.imgs: imgs})
+        return feature
 
     def load_weights(self, weight_file, sess):
         weights = np.load(weight_file)

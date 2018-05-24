@@ -38,22 +38,32 @@ class vgg16:
 
         ###here set vgg training node
         self.init_train_node()
-
+        self.summary_node()
         self.init_variables = tf.global_variables_initializer()
 
         if weights is not None:
             self.sess = tf.Session()
             self.load_weights(weights, sess)
 
+    def summary_node(self):
+        with tf.name_scope('summary_node'):
+            self.whole_loss_node = tf.placeholder(tf.float32)
+            self.whole_loss_summary = tf.summary.scalar('whole_loss', self.whole_loss_node)
+            self.whole_accuracy_node = tf.placeholder(tf.float32)
+            self.whole_accuracy_summary = tf.summary.scalar('whole_accuracy', self.whole_accuracy_node)
+            self.whole_summary = tf.summary.merge([self.whole_loss_summary, self.whole_accuracy_summary])
 
     def init_train_node(self):
         with tf.name_scope('train'):
             self.labels = tf.placeholder(tf.float32, name='labels', shape=[None, self.labeldim])
             self.loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=self.fc3l, labels=self.labels))
+            self.batch_loss_summary = tf.summary.scalar('batch_loss', self.loss)
             optimizer = tf.train.AdamOptimizer()
             self.train_step = optimizer.minimize(self.loss)
             correct_prediction = tf.equal(tf.argmax(self.probs, axis=1), tf.argmax(self.labels, axis=1))
             self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+            self.batch_accuracy_summary = tf.summary.scalar('batch_accuracy', self.accuracy)
+            self.batch_summary = tf.summary.merge([self.batch_loss_summary, self.batch_accuracy_summary])
 
     def convlayers(self, imgs_mean):
         self.parameters = []
@@ -284,7 +294,7 @@ class vgg16:
 
 
 
-    def training(self, epoch, imgs, labels, batch_size, sess, savefilename):
+    def training(self, epoch, imgs, labels, batch_size, drop_keepprob, sess, savefilename, log_dir):
         if self.sess is not None:
             self.sess.close()
 
@@ -294,9 +304,11 @@ class vgg16:
         self.sess.run(self.init_variables)
         self.sess.graph.finalize()
 
+        train_writer = tf.summary.FileWriter(log_dir + '/train', sess.graph)
+
         sampleNum = labels.shape[0]
         train_steps = int(sampleNum / batch_size)
-        for i in range(epoch):
+        for i in range(epoch):   ####i is epoch iterator
             # todo unknown reason, gpu memory leak out
             # sess.run(self.iterator.initializer, feed_dict={self.features_placeholder: imgs,
             #                                                self.labels_placeholder: labels})
@@ -312,17 +324,35 @@ class vgg16:
             #     except tf.errors.OutOfRangeError:
             #         break
 
-            for j in range(train_steps):
-                self.sess.run(self.train_step,
+            for j in range(train_steps):  ###j is batch iterator
+                if j%5 != 4:
+                    self.sess.run(self.train_step,
                               feed_dict={self.imgs: imgs[j * batch_size: (j + 1) * batch_size, :, :, :],
                                          self.labels: labels[j * batch_size: (j + 1) * batch_size, :],
-                                         self.dropout_keepprob: 0.5})
+                                         self.dropout_keepprob: drop_keepprob})
+
+                else:
+                    _, batch_summary = self.sess.run([self.train_step, self.batch_summary],
+                                      feed_dict={self.imgs: imgs[j * batch_size: (j + 1) * batch_size, :, :, :],
+                                                 self.labels: labels[j * batch_size: (j + 1) * batch_size, :],
+                                                 self.dropout_keepprob: drop_keepprob})
+                    train_writer.add_summary(batch_summary, i * (sampleNum) + (j + 1) * batch_size)
+
+                    # _, batch_loss_summary, batch_accuracy_summary = \
+                    #     self.sess.run([self.train_step, self.batch_loss_summary, self.batch_accuracy_summary],
+                    #               feed_dict={self.imgs: imgs[j * batch_size: (j + 1) * batch_size, :, :, :],
+                    #                          self.labels: labels[j * batch_size: (j + 1) * batch_size, :],
+                    #                          self.dropout_keepprob: drop_keepprob})
+                    # train_writer.add_summary(batch_loss_summary, i * (sampleNum) + (j + 1) * batch_size)
+                    # train_writer.add_summary(batch_accuracy_summary, i * (sampleNum) + (j + 1) * batch_size)
+
+
             if train_steps * batch_size != sampleNum:
                 self.sess.run(self.train_step, feed_dict={self.imgs: imgs[train_steps * batch_size:, :, :, :],
                                                           self.labels: labels[train_steps * batch_size:, :],
-                                                          self.dropout_keepprob: 0.5})
+                                                          self.dropout_keepprob: drop_keepprob})
 
-            if i%10 == 9:
+            if i%1 == 0:
                 batch_loss = []
                 batch_accuracy = []
                 for j in range(train_steps):
@@ -345,6 +375,11 @@ class vgg16:
                     whole_accuracy = (whole_accuracy * train_steps * batch_size +
                                      accuracy * (sampleNum - train_steps * batch_size))/sampleNum
 
+                whole_summary = self.sess.run(self.whole_summary, feed_dict={self.whole_loss_node: whole_loss,
+                                                                             self.whole_accuracy_node: whole_accuracy})
+                train_writer.add_summary(whole_summary, i*sampleNum)
+
+                print(i)
                 print(time.strftime('%Y-%m-%d %H:%M:%S'))
                 print(whole_accuracy, whole_loss)
                 print()
@@ -404,7 +439,7 @@ if __name__ == '__main__':
     with tf.Session() as sess:
         start = time.time()
         print(time.strftime('%Y-%m-%d %H:%M:%S'))
-        vgg.training(1000, data.trainimgs, data.trainlabels, 2, sess, 'tweights.npz')
+        vgg.training(10, data.trainimgs, data.trainlabels, 8, 1, sess, 'tweights.npz', 'tflog')
         print(vgg.testaccuracy(data.testimgs, data.testlabels, 2))
         end = time.time()
         print(time.strftime('%Y-%m-%d %H:%M:%S'))

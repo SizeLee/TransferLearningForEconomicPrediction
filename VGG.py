@@ -423,7 +423,7 @@ class vgg16:
 
     def load_weights(self, weight_file, sess):
         weights = np.load(weight_file)
-        keys = sorted(weights.keys())
+        keys = sorted(weights.keys(), key=lambda x: int(x.split('_')[1]))
         for i, k in enumerate(keys):
             print(i, k, np.shape(weights[k]))
             sess.run(self.parameters[i].assign(weights[k]))

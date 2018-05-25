@@ -43,7 +43,7 @@ class vgg16:
 
         if weights is not None:
             self.sess = tf.Session()
-            self.load_weights(weights, sess)
+            self.load_weights(weights, self.sess)
 
     def summary_node(self):
         with tf.name_scope('summary_node'):

@@ -293,24 +293,24 @@ class vgg16:
             self.parameters += [fc3w, fc3b]
 
 
-    def training(self, epoch, imgs, labels, batch_size, drop_keepprob, sess, savefilename, log_dir):
+    def training(self, epoch, imgs, labels, batch_size, drop_keepprob, savefilename, log_dir):
         if self.sess is not None:
             self.sess.close()
 
-        self.sess = sess
+        self.sess = tf.Session()
 
         # Compute for trainround epochs.
         self.sess.run(self.init_variables)
         self.sess.graph.finalize()
 
-        train_writer = tf.summary.FileWriter(log_dir + '/train', sess.graph)
+        train_writer = tf.summary.FileWriter(log_dir + '/train', self.sess.graph)
 
         sampleNum = labels.shape[0]
         train_steps = int(sampleNum / batch_size)
         for i in range(epoch):   ####i is epoch iterator
             # todo unknown reason, gpu memory leak out
-            # sess.run(self.iterator.initializer, feed_dict={self.features_placeholder: imgs,
-            #                                                self.labels_placeholder: labels})
+            # self.sess.run(self.iterator.initializer, feed_dict={self.features_placeholder: imgs,
+            #                                                     self.labels_placeholder: labels})
             # count = 0
             # while True:
             #     try:
@@ -441,21 +441,20 @@ if __name__ == '__main__':
     # imgs = tf.placeholder(tf.float32, [None, 224, 224, 3])
     data = datapreprocess.datacontainer(0.7)
     vgg = vgg16(data.getimgsize(), data.getlabeldim(), data.getTrainMean())  # 'vgg16_weights.npz'
-    with tf.Session() as sess:
-        start = time.time()
-        print(time.strftime('%Y-%m-%d %H:%M:%S'))
-        vgg.training(10, data.trainimgs, data.trainlabels, 8, 1, sess, 'tweights.npz', 'tflog')
-        print(vgg.testaccuracy(data.testimgs, data.testlabels, 2))
-        end = time.time()
-        print(time.strftime('%Y-%m-%d %H:%M:%S'))
-        print('total time: ', end - start, 's')
 
-        # img1 = imread('laska.png', mode='RGB')
-        # img1 = imresize(img1, (224, 224))
-        #
-        # prob = sess.run(vgg.probs, feed_dict={vgg.imgs: [img1]})[0]
-        # preds = (np.argsort(prob)[::-1])[0:5]
-        # for p in preds:
-        #     print(class_names[p], prob[p])
+    start = time.time()
+    print(time.strftime('%Y-%m-%d %H:%M:%S'))
+    vgg.training(10, data.trainimgs, data.trainlabels, 8, 1, 'tweights.npz', 'tflog')
+    print(vgg.testaccuracy(data.testimgs, data.testlabels, 2))
+    end = time.time()
+    print(time.strftime('%Y-%m-%d %H:%M:%S'))
+    print('total time: ', end - start, 's')
 
-###todo add dropout and train step, test train
+    # img1 = imread('laska.png', mode='RGB')
+    # img1 = imresize(img1, (224, 224))
+    #
+    # prob = sess.run(vgg.probs, feed_dict={vgg.imgs: [img1]})[0]
+    # preds = (np.argsort(prob)[::-1])[0:5]
+    # for p in preds:
+    #     print(class_names[p], prob[p])
+

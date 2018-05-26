@@ -1,5 +1,6 @@
 import tensorflow as tf
 import numpy as np
+import time
 from VGG import vgg16
 
 class EconomicRegression:
@@ -62,13 +63,53 @@ class EconomicRegression:
 
         return
 
-    def train(self):
-        
+    def feature_reduce(self, features_of_a_sample, method):
+        if method == 'Mean':
+            return np.mean(features_of_a_sample, axis=0)
+
+
+    def feature_map(self, images_of_a_sample):
+        features_of_a_sample = self.vgg.getfeature(images_of_a_sample)
+        return self.feature_reduce(features_of_a_sample, 'Mean')
+
+
+    def train(self, images_of_samples, y_of_samples, epoch_num, reg_lambda, log_dir):
+        feature_of_samples = self.feature_map(images_of_samples[0])
+        for each in images_of_samples[1:]:
+            feature_of_samples = np.vstack((feature_of_samples, self.feature_map(each)))
+
+        train_writer = tf.summary.FileWriter(log_dir + '/regression_train', self.sess.graph)
+        for i in epoch_num:
+            if i % 10 != 9:
+                self.sess.run(self.train_step, feed_dict={self.input_feature: feature_of_samples,
+                                                          self.y: y_of_samples,
+                                                          self.reg_lambda: reg_lambda})
+            else:
+                _, loss, summary = self.sess.run([self.train_step, self.loss, self.whole_summary],
+                                                 feed_dict={self.input_feature: feature_of_samples,
+                                                            self.y: y_of_samples,
+                                                            self.reg_lambda: reg_lambda})
+                train_writer.add_summary(summary, i)
+                print(i)
+                print(time.strftime('%Y-%m-%d %H:%M:%S'))
+                print(loss)
+                print()
+
+        train_writer.close()
         return
+        # or input data format: list of [images, im_height, im_weight, channels] which represent a sample
         # input data [sample, images, im_height, im_weight, channels] ,
         # calculate by vgg get[sample, images, features] data
         # and take mean by images,
         # then get the [sample, features] data
+
+    def predict(self, images_of_samples):
+        feature_of_samples = self.feature_map(images_of_samples[0])
+        for each in images_of_samples[1:]:
+            feature_of_samples = np.vstack((feature_of_samples, self.feature_map(each)))
+
+        y_predict = self.sess.run(self.out, feed_dict={self.input_feature: feature_of_samples})
+        return y_predict
 
     def load_weights(self, weight_file, sess):
         weights = np.load(weight_file)

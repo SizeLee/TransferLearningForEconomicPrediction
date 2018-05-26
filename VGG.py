@@ -383,6 +383,7 @@ class vgg16:
                 print(whole_accuracy, whole_loss)
                 print()
 
+        train_writer.close()
         self.save_weights(savefilename)
 
         return

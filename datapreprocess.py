@@ -137,9 +137,10 @@ class RegressionDataContainer:
         self.data = [self.data[shuffle_index[i]] for i in range(sample_num)]
         self.y = [self.y[shuffle_index[i]] for i in range(sample_num)]
         self.train_data = self.data[:int(train_set_ratio * sample_num)]
-        self.train_y = self.y[:int(train_set_ratio * sample_num)]
+        self.train_y = np.array(self.y[:int(train_set_ratio * sample_num)]).reshape(-1, 1)
         self.test_data = self.data[int(train_set_ratio * sample_num):]
-        self.test_y = self.data[int(train_set_ratio * sample_num):]
+        self.test_y = np.array(self.y[int(train_set_ratio * sample_num):]).reshape(-1, 1)
+        self.y = np.array(self.y).reshape(-1, 1)
         # print(self.y)
         return
 

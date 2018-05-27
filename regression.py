@@ -8,13 +8,16 @@ class EconomicRegression:
     def __init__(self, im_size_channel, label_dim, imgs_mean, vggweighfile, regressionweightfile=None):
         self.vgg = vgg16(im_size_channel, label_dim, imgs_mean, weights=vggweighfile)
         self.featureSize = self.vgg.getfeatureSize()
-        print(self.featureSize)
+        # print(self.featureSize)
         self.regressionG = tf.Graph()
         self.sess = tf.Session(graph=self.regressionG)
         self.parameters = []
         self.fc_layer()
         self.regression_layer()
         self.train_node()
+        with self.regressionG.as_default():
+            self.init_variables = tf.global_variables_initializer()
+
         if regressionweightfile is not None:
             self.load_weights(regressionweightfile, self.sess)
 
@@ -75,13 +78,14 @@ class EconomicRegression:
         return self.feature_reduce(features_of_a_sample, 'Mean')
 
 
-    def train(self, images_of_samples, y_of_samples, epoch_num, reg_lambda, log_dir):
+    def train(self, images_of_samples, y_of_samples, epoch_num, reg_lambda, log_dir, save_weights_filename):
         feature_of_samples = self.feature_map(images_of_samples[0])
         for each in images_of_samples[1:]:
             feature_of_samples = np.vstack((feature_of_samples, self.feature_map(each)))
 
+        self.sess.run(self.init_variables)
         train_writer = tf.summary.FileWriter(log_dir + '/regression_train', self.sess.graph)
-        for i in epoch_num:
+        for i in range(epoch_num):
             if i % 10 != 9:
                 self.sess.run(self.train_step, feed_dict={self.input_feature: feature_of_samples,
                                                           self.y: y_of_samples,
@@ -98,12 +102,22 @@ class EconomicRegression:
                 print()
 
         train_writer.close()
+        self.save_weights(save_weights_filename)
         return
         # or input data format: list of [images, im_height, im_weight, channels] which represent a sample
         # input data [sample, images, im_height, im_weight, channels] ,
         # calculate by vgg get[sample, images, features] data
         # and take mean by images,
         # then get the [sample, features] data
+
+    def test_loss(self, images_of_samples, y_of_samples):
+        feature_of_samples = self.feature_map(images_of_samples[0])
+        for each in images_of_samples[1:]:
+            feature_of_samples = np.vstack((feature_of_samples, self.feature_map(each)))
+
+        y_predict, loss = self.sess.run([self.out, self.regression_loss], feed_dict={self.input_feature: feature_of_samples, 
+                                                                                     self.y: y_of_samples})
+        return y_predict, loss
 
     def predict(self, images_of_samples):
         feature_of_samples = self.feature_map(images_of_samples[0])
@@ -133,4 +147,6 @@ if __name__ == '__main__':
     img_mean = np.load('data/img_mean.npz')['arr_0']
     # print(img_mean)
     myregression = EconomicRegression(rdc.getimgsize(), 6, img_mean, 'tweights.npz')
-    myregression.train(rdc.train_data, rdc.train_y, 10, 0.1, 'tflog/regression')
+    myregression.train(rdc.train_data, rdc.train_y, 1000, 1e-8, 'tflog', 'regression_weights.npz')
+    _, loss = myregression.test_loss(rdc.test_data, rdc.test_y)
+    print('test_loss:', loss)

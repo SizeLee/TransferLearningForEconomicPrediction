@@ -416,7 +416,7 @@ class vgg16:
         return whole_accuracy
 
     def getfeature(self, imgs):
-        feature = self.sess.run(self.fc2, feed_dict={self.imgs: imgs})
+        feature = self.sess.run(self.fc2, feed_dict={self.imgs: imgs, self.dropout_keepprob: 1})
         return feature
 
     def getfeatureSize(self):

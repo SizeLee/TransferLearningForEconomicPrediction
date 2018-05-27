@@ -1,12 +1,14 @@
 import tensorflow as tf
 import numpy as np
 import time
+import datapreprocess
 from VGG import vgg16
 
 class EconomicRegression:
     def __init__(self, im_size_channel, label_dim, imgs_mean, vggweighfile, regressionweightfile=None):
         self.vgg = vgg16(im_size_channel, label_dim, imgs_mean, weights=vggweighfile)
         self.featureSize = self.vgg.getfeatureSize()
+        print(self.featureSize)
         self.regressionG = tf.Graph()
         self.sess = tf.Session(graph=self.regressionG)
         self.parameters = []
@@ -22,7 +24,7 @@ class EconomicRegression:
             with tf.name_scope('input'):
                 self.input_feature = tf.placeholder(tf.float32, [None, self.featureSize], 'feature')
 
-            with tf.name_scope('feature map'):
+            with tf.name_scope('feature_map'):
                 self.fcW = tf.Variable(tf.truncated_normal([self.featureSize, self.featureSize],
                                                            dtype=tf.float32,
                                                            stddev=1e-1), name='weights')
@@ -127,4 +129,8 @@ class EconomicRegression:
         np.savez(savefilename, *weights)
 
 if __name__ == '__main__':
-    myregression = EconomicRegression([400, 400, 3], 6, [98, 98, 98], 'tweights.npz')
+    rdc = datapreprocess.RegressionDataContainer(0.7)
+    img_mean = np.load('data/img_mean.npz')['arr_0']
+    # print(img_mean)
+    myregression = EconomicRegression(rdc.getimgsize(), 6, img_mean, 'tweights.npz')
+    myregression.train(rdc.train_data, rdc.train_y, 10, 0.1, 'tflog/regression')

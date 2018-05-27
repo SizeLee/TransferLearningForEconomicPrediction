@@ -2,6 +2,7 @@ import os
 import random
 from scipy.misc import imread, imresize
 import numpy as np
+import os
 
 class datacontainer:
     def __init__(self, train_set_ratio):
@@ -91,6 +92,8 @@ class datacontainer:
         immatrix = np.array(self.trainimgs)
         wholemean = np.mean(immatrix, axis=(0, 1, 2))
 
+        np.savez('data/img_mean.npz', wholemean)
+
         return wholemean
 
     def getimgsize(self):
@@ -102,7 +105,54 @@ class datacontainer:
     def getlabeldim(self):
         return len(self.trainlabels[0])
 
+
+class RegressionDataContainer:
+    def __init__(self, train_set_ratio):
+        path = 'data/Regression_data'
+        img_fold_name = 'imgs'
+        value_file_name = 'value.txt'
+        sample_path = os.listdir(path)
+        # print(sample_path)
+        self.data = []
+        self.y = []
+        for each_path in sample_path:
+            working_path = path + '/' + each_path + '/'
+            with open(working_path + value_file_name, 'r') as value_file:
+                y_value = float(value_file.readline())
+                # print(y_value)
+                self.y.append(y_value)
+            imgs_path = os.listdir(working_path + img_fold_name)
+            # print(imgs_path)
+            imgs = []
+            for each in imgs_path:
+                img = imread(working_path + img_fold_name + '/' + each)
+                imgs.append(img)
+
+            self.data.append(np.array(imgs))
+
+        sample_num = len(self.data)
+        shuffle_index = [i for i in range(sample_num)]
+        random.shuffle(shuffle_index)
+        # print(shuffle_index)
+        self.data = [self.data[shuffle_index[i]] for i in range(sample_num)]
+        self.y = [self.y[shuffle_index[i]] for i in range(sample_num)]
+        self.train_data = self.data[:int(train_set_ratio * sample_num)]
+        self.train_y = self.y[:int(train_set_ratio * sample_num)]
+        self.test_data = self.data[int(train_set_ratio * sample_num):]
+        self.test_y = self.data[int(train_set_ratio * sample_num):]
+        # print(self.y)
+        return
+
+    def getimgsize(self):
+        row = self.data[0].shape[1]
+        column = self.data[0].shape[2]
+        channel = self.data[0].shape[3]
+        return (row, column, channel)
+
 if __name__ == '__main__':
     dc = datacontainer(0.7)
     print(dc.getTrainMean())
     print(dc.getimgsize())
+    rdc = RegressionDataContainer(0.7)
+    print(rdc.getimgsize())
+

@@ -420,7 +420,7 @@ class vgg16:
         return feature
 
     def getfeatureSize(self):
-        return self.fc2.get_shape()[1]
+        return int(self.fc2.get_shape()[1])
 
     def load_weights(self, weight_file, sess):
         weights = np.load(weight_file)

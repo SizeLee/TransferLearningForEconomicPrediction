@@ -146,7 +146,7 @@ if __name__ == '__main__':
     rdc = datapreprocess.RegressionDataContainer(0.7)
     img_mean = np.load('data/img_mean.npz')['arr_0']
     # print(img_mean)
-    myregression = EconomicRegression(rdc.getimgsize(), 6, img_mean, 'tweights.npz')
+    myregression = EconomicRegression(rdc.getimgsize(), 3, img_mean, 'tweights.npz')
     myregression.train(rdc.train_data, rdc.train_y, 1000, 1e-8, 'tflog', 'regression_weights.npz')
     _, loss = myregression.test_loss(rdc.test_data, rdc.test_y)
     print('test_loss:', loss)

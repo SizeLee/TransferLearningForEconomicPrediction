@@ -6,7 +6,7 @@ import os
 
 class datacontainer:
     def __init__(self, train_set_ratio):
-        nlkind = 6 ###########define night light kinds here
+        nlkind = 3 ###########define night light kinds here
         path = ['data/NL_%d' % i for i in range(1, nlkind + 1)]
         # print(path)
         self.imgs = {}

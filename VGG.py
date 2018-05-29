@@ -51,7 +51,9 @@ class vgg16:
             self.whole_loss_summary = tf.summary.scalar('whole_loss', self.whole_loss_node)
             self.whole_accuracy_node = tf.placeholder(tf.float32)
             self.whole_accuracy_summary = tf.summary.scalar('whole_accuracy', self.whole_accuracy_node)
-            self.whole_summary = tf.summary.merge([self.whole_loss_summary, self.whole_accuracy_summary])
+            self.validation_accuracy_node = tf.placeholder(tf.float32)
+            self.validation_accuracy_summary = tf.summary.scalar('val_accuracy', self.validation_accuracy_node)
+            self.whole_summary = tf.summary.merge([self.whole_loss_summary, self.whole_accuracy_summary, self.validation_accuracy_summary])
 
     def init_train_node(self):
         with tf.name_scope('train'):
@@ -293,7 +295,7 @@ class vgg16:
             self.parameters += [fc3w, fc3b]
 
 
-    def training(self, epoch, imgs, labels, batch_size, drop_keepprob, savefilename, log_dir):
+    def training(self, epoch, imgs, labels, batch_size, drop_keepprob, savefilename, log_dir, val_imgs, val_labels):
         if self.sess is not None:
             self.sess.close()
 
@@ -374,13 +376,15 @@ class vgg16:
                     whole_accuracy = (whole_accuracy * train_steps * batch_size +
                                      accuracy * (sampleNum - train_steps * batch_size))/sampleNum
 
+                val_accuracy = self.testaccuracy(val_imgs, val_labels, 8)
                 whole_summary = self.sess.run(self.whole_summary, feed_dict={self.whole_loss_node: whole_loss,
-                                                                             self.whole_accuracy_node: whole_accuracy})
+                                                                             self.whole_accuracy_node: whole_accuracy,
+                                                                             self.validation_accuracy_node: val_accuracy})
                 train_writer.add_summary(whole_summary, i*sampleNum)
 
                 print(i)
                 print(time.strftime('%Y-%m-%d %H:%M:%S'))
-                print(whole_accuracy, whole_loss)
+                print(whole_accuracy, whole_loss, val_accuracy)
                 print()
 
         train_writer.close()
@@ -445,8 +449,8 @@ if __name__ == '__main__':
 
     start = time.time()
     print(time.strftime('%Y-%m-%d %H:%M:%S'))
-    vgg.training(10, data.trainimgs, data.trainlabels, 8, 1, 'tweights.npz', 'tflog')
-    print(vgg.testaccuracy(data.testimgs, data.testlabels, 2))
+    vgg.training(240, data.trainimgs, data.trainlabels, 8, 0.5, 'tweights.npz', 'tflog', data.testimgs, data.testlabels)
+    print(vgg.testaccuracy(data.testimgs, data.testlabels, 8))
     end = time.time()
     print(time.strftime('%Y-%m-%d %H:%M:%S'))
     print('total time: ', end - start, 's')

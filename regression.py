@@ -1,12 +1,15 @@
 import tensorflow as tf
 import numpy as np
 import time
+import json
 import datapreprocess
 from VGG import vgg16
 
 class EconomicRegression:
-    def __init__(self, im_size_channel, label_dim, imgs_mean, vggweighfile, regressionweightfile=None):
-        self.vgg = vgg16(im_size_channel, label_dim, imgs_mean, weights=vggweighfile)
+    def __init__(self, im_size_channel, label_dim, imgs_mean, vggstructurefile, vggweighfile, regressionweightfile=None):
+        with open(vggstructurefile, 'r') as f:
+            net_paras = json.load(f)
+        self.vgg = vgg16(im_size_channel, label_dim, imgs_mean, net_paras, weights=vggweighfile)
         self.featureSize = self.vgg.getfeatureSize()
         # print(self.featureSize)
         self.regressionG = tf.Graph()
@@ -146,7 +149,7 @@ if __name__ == '__main__':
     rdc = datapreprocess.RegressionDataContainer(0.7)
     img_mean = np.load('data/img_mean.npz')['arr_0']
     # print(img_mean)
-    myregression = EconomicRegression(rdc.getimgsize(), 3, img_mean, 'tweights.npz')
+    myregression = EconomicRegression(rdc.getimgsize(), 3, img_mean, 'net_structure.json', 'tweights.npz')
     myregression.train(rdc.train_data, rdc.train_y, 1000, 1e-8, 'tflog', 'regression_weights.npz')
     _, loss = myregression.test_loss(rdc.test_data, rdc.test_y)
     print('test_loss:', loss)

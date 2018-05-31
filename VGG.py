@@ -257,7 +257,7 @@ class vgg16:
     def fc_layers(self):
         # fc1
         midsize = 1024 #4096 todo here to switch to 4096 size when working with better gpu card
-        neural_reduce_ratio = 4
+        neural_reduce_ratio = 16
         with tf.name_scope('dropout_parameter'):
             self.dropout_keepprob = tf.placeholder(tf.float32, name='keepprob')
 
@@ -459,7 +459,7 @@ if __name__ == '__main__':
 
     start = time.time()
     print(time.strftime('%Y-%m-%d %H:%M:%S'))
-    vgg.training(300, data.trainimgs, data.trainlabels, 8, 0.5, 'tweights.npz', 'tflog', data.testimgs, data.testlabels)
+    vgg.training(100, data.trainimgs, data.trainlabels, 8, 1, 'tweights.npz', 'tflog', data.testimgs, data.testlabels)
     print(vgg.testaccuracy(data.testimgs, data.testlabels, 8))
     end = time.time()
     print(time.strftime('%Y-%m-%d %H:%M:%S'))

@@ -35,6 +35,7 @@ class vgg16:
         self.convlayers(imgs_mean)
         self.fc_layers()
         self.probs = tf.nn.softmax(self.fc3l)
+        self.probs_distribution = tf.summary.histogram('probs_distribution', self.probs)
 
         ###here set vgg training node
         self.init_train_node()
@@ -256,6 +257,7 @@ class vgg16:
     def fc_layers(self):
         # fc1
         midsize = 1024 #4096 todo here to switch to 4096 size when working with better gpu card
+        neural_reduce_ratio = 4
         with tf.name_scope('dropout_parameter'):
             self.dropout_keepprob = tf.placeholder(tf.float32, name='keepprob')
 
@@ -274,10 +276,10 @@ class vgg16:
 
         # fc2
         with tf.name_scope('fc2') as scope:
-            fc2w = tf.Variable(tf.truncated_normal([midsize, midsize],
+            fc2w = tf.Variable(tf.truncated_normal([midsize, int(midsize/neural_reduce_ratio)],
                                                          dtype=tf.float32,
                                                          stddev=1e-1), name='weights')
-            fc2b = tf.Variable(tf.constant(1.0, shape=[midsize], dtype=tf.float32),
+            fc2b = tf.Variable(tf.constant(1.0, shape=[int(midsize/neural_reduce_ratio)], dtype=tf.float32),
                                  trainable=True, name='biases')
             fc2l = tf.nn.bias_add(tf.matmul(self.fc1_drop_out, fc2w), fc2b)
             self.fc2 = tf.nn.relu(fc2l)
@@ -286,7 +288,7 @@ class vgg16:
 
         # fc3
         with tf.name_scope('fc3') as scope:
-            fc3w = tf.Variable(tf.truncated_normal([midsize, self.labeldim],
+            fc3w = tf.Variable(tf.truncated_normal([int(midsize/neural_reduce_ratio), self.labeldim],
                                                          dtype=tf.float32,
                                                          stddev=1e-1), name='weights')
             fc3b = tf.Variable(tf.constant(1.0, shape=[self.labeldim], dtype=tf.float32),
@@ -309,6 +311,7 @@ class vgg16:
 
         sampleNum = labels.shape[0]
         train_steps = int(sampleNum / batch_size)
+        best_val_accuracy = 0.
         for i in range(epoch):   ####i is epoch iterator
             # todo unknown reason, gpu memory leak out
             # self.sess.run(self.iterator.initializer, feed_dict={self.features_placeholder: imgs,
@@ -357,12 +360,13 @@ class vgg16:
                 batch_loss = []
                 batch_accuracy = []
                 for j in range(train_steps):
-                    loss, accuracy = self.sess.run([self.loss, self.accuracy],
+                    loss, accuracy, probs_distribution = self.sess.run([self.loss, self.accuracy, self.probs_distribution],
                                          feed_dict={self.imgs: imgs[j * batch_size: (j + 1) * batch_size, :, :, :],
                                                     self.labels: labels[j * batch_size: (j + 1) * batch_size, :],
                                                     self.dropout_keepprob: 1})
                     batch_loss.append(loss)
                     batch_accuracy.append(accuracy)
+                    train_writer.add_summary(probs_distribution, i*train_steps+j)
                 whole_loss = np.array(batch_loss).mean()
                 whole_accuracy = np.array(batch_accuracy).mean()
 
@@ -377,10 +381,16 @@ class vgg16:
                                      accuracy * (sampleNum - train_steps * batch_size))/sampleNum
 
                 val_accuracy = self.testaccuracy(val_imgs, val_labels, 8)
+                if val_accuracy > best_val_accuracy:
+                    best_val_accuracy = val_accuracy
+                    self.save_weights(savefilename)
+
                 whole_summary = self.sess.run(self.whole_summary, feed_dict={self.whole_loss_node: whole_loss,
                                                                              self.whole_accuracy_node: whole_accuracy,
                                                                              self.validation_accuracy_node: val_accuracy})
                 train_writer.add_summary(whole_summary, i*sampleNum)
+                # probs_distribution = self.sess.run(self.probs_distribution, feed_dict={self.imgs:imgs, self.dropout_keepprob:1})
+                # train_writer.add_summary(probs_distribution, i*sampleNum)
 
                 print(i)
                 print(time.strftime('%Y-%m-%d %H:%M:%S'))
@@ -388,7 +398,7 @@ class vgg16:
                 print()
 
         train_writer.close()
-        self.save_weights(savefilename)
+        # self.save_weights(savefilename)
 
         return
 
@@ -449,7 +459,7 @@ if __name__ == '__main__':
 
     start = time.time()
     print(time.strftime('%Y-%m-%d %H:%M:%S'))
-    vgg.training(240, data.trainimgs, data.trainlabels, 8, 0.5, 'tweights.npz', 'tflog', data.testimgs, data.testlabels)
+    vgg.training(300, data.trainimgs, data.trainlabels, 8, 0.5, 'tweights.npz', 'tflog', data.testimgs, data.testlabels)
     print(vgg.testaccuracy(data.testimgs, data.testlabels, 8))
     end = time.time()
     print(time.strftime('%Y-%m-%d %H:%M:%S'))

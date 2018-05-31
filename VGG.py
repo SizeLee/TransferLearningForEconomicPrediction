@@ -14,12 +14,15 @@ from scipy.misc import imread, imresize
 from imagenet_classes import class_names
 import datapreprocess
 import time
+import json
 
 class vgg16:
-    def __init__(self, im_size_channel, labeldim, imgs_mean, weights=None):
+    def __init__(self, im_size_channel, labeldim, imgs_mean, net_structure, weights=None):
         self.sess = None
         self.im_size_channel = im_size_channel
         self.labeldim = labeldim
+        self.net_structure = net_structure
+        self.parameters = []
         # batchsize = 2
 
         ###here set dataset node structure
@@ -69,8 +72,6 @@ class vgg16:
             self.batch_summary = tf.summary.merge([self.batch_loss_summary, self.batch_accuracy_summary])
 
     def convlayers(self, imgs_mean):
-        self.parameters = []
-
         # zero-mean input  ###todo mean value should be satellite data set or can be transferred, need test
         with tf.name_scope('preprocess') as scope:
             mean = tf.constant(imgs_mean, dtype=tf.float32, shape=[1, 1, 1, 3], name='img_mean') #imgnet[123.68, 116.779, 103.939]
@@ -78,10 +79,11 @@ class vgg16:
 
         # conv1_1
         with tf.name_scope('conv1_1') as scope:
-            kernel = tf.Variable(tf.truncated_normal([3, 3, 3, 64], dtype=tf.float32,
+            stru_p = self.net_structure['conv1_1']
+            kernel = tf.Variable(tf.truncated_normal(stru_p['kernel_shape'], dtype=tf.float32,
                                                      stddev=1e-1), name='weights')
-            conv = tf.nn.conv2d(images, kernel, [1, 1, 1, 1], padding='SAME')
-            biases = tf.Variable(tf.constant(0.0, shape=[64], dtype=tf.float32),
+            conv = tf.nn.conv2d(images, kernel, stru_p['strides'], padding=stru_p['padding'])
+            biases = tf.Variable(tf.constant(0.0, shape=stru_p['biases_shape'], dtype=tf.float32),
                                  trainable=True, name='biases')
             out = tf.nn.bias_add(conv, biases)
             self.conv1_1 = tf.nn.relu(out, name=scope)
@@ -89,28 +91,31 @@ class vgg16:
 
         # conv1_2
         with tf.name_scope('conv1_2') as scope:
-            kernel = tf.Variable(tf.truncated_normal([3, 3, 64, 64], dtype=tf.float32,
+            stru_p = self.net_structure['conv1_2']
+            kernel = tf.Variable(tf.truncated_normal(stru_p['kernel_shape'], dtype=tf.float32,
                                                      stddev=1e-1), name='weights')
-            conv = tf.nn.conv2d(self.conv1_1, kernel, [1, 1, 1, 1], padding='SAME')
-            biases = tf.Variable(tf.constant(0.0, shape=[64], dtype=tf.float32),
+            conv = tf.nn.conv2d(self.conv1_1, kernel, stru_p['strides'], padding=stru_p['padding'])
+            biases = tf.Variable(tf.constant(0.0, shape=stru_p['biases_shape'], dtype=tf.float32),
                                  trainable=True, name='biases')
             out = tf.nn.bias_add(conv, biases)
             self.conv1_2 = tf.nn.relu(out, name=scope)
             self.parameters += [kernel, biases]
 
         # pool1
+        stru_p = self.net_structure['pool1']
         self.pool1 = tf.nn.max_pool(self.conv1_2,
-                               ksize=[1, 2, 2, 1],
-                               strides=[1, 2, 2, 1],
-                               padding='SAME',
+                               ksize=stru_p['ksize'],
+                               strides=stru_p['strides'],
+                               padding=stru_p['padding'],
                                name='pool1')
 
         # conv2_1
         with tf.name_scope('conv2_1') as scope:
-            kernel = tf.Variable(tf.truncated_normal([3, 3, 64, 128], dtype=tf.float32,
+            stru_p = self.net_structure['conv2_1']
+            kernel = tf.Variable(tf.truncated_normal(stru_p['kernel_shape'], dtype=tf.float32,
                                                      stddev=1e-1), name='weights')
-            conv = tf.nn.conv2d(self.pool1, kernel, [1, 1, 1, 1], padding='SAME')
-            biases = tf.Variable(tf.constant(0.0, shape=[128], dtype=tf.float32),
+            conv = tf.nn.conv2d(self.pool1, kernel, stru_p['strides'], padding=stru_p['padding'])
+            biases = tf.Variable(tf.constant(0.0, shape=stru_p['biases_shape'], dtype=tf.float32),
                                  trainable=True, name='biases')
             out = tf.nn.bias_add(conv, biases)
             self.conv2_1 = tf.nn.relu(out, name=scope)
@@ -118,28 +123,31 @@ class vgg16:
 
         # conv2_2
         with tf.name_scope('conv2_2') as scope:
-            kernel = tf.Variable(tf.truncated_normal([3, 3, 128, 128], dtype=tf.float32,
+            stru_p = self.net_structure['conv2_2']
+            kernel = tf.Variable(tf.truncated_normal(stru_p['kernel_shape'], dtype=tf.float32,
                                                      stddev=1e-1), name='weights')
-            conv = tf.nn.conv2d(self.conv2_1, kernel, [1, 1, 1, 1], padding='SAME')
-            biases = tf.Variable(tf.constant(0.0, shape=[128], dtype=tf.float32),
+            conv = tf.nn.conv2d(self.conv2_1, kernel, stru_p['strides'], padding=stru_p['padding'])
+            biases = tf.Variable(tf.constant(0.0, shape=stru_p['biases_shape'], dtype=tf.float32),
                                  trainable=True, name='biases')
             out = tf.nn.bias_add(conv, biases)
             self.conv2_2 = tf.nn.relu(out, name=scope)
             self.parameters += [kernel, biases]
 
         # pool2
+        stru_p = self.net_structure['pool2']
         self.pool2 = tf.nn.max_pool(self.conv2_2,
-                               ksize=[1, 2, 2, 1],
-                               strides=[1, 2, 2, 1],
-                               padding='SAME',
+                               ksize=stru_p['ksize'],
+                               strides=stru_p['strides'],
+                               padding=stru_p['padding'],
                                name='pool2')
 
         # conv3_1
         with tf.name_scope('conv3_1') as scope:
-            kernel = tf.Variable(tf.truncated_normal([3, 3, 128, 256], dtype=tf.float32,
+            stru_p = self.net_structure['conv3_1']
+            kernel = tf.Variable(tf.truncated_normal(stru_p['kernel_shape'], dtype=tf.float32,
                                                      stddev=1e-1), name='weights')
-            conv = tf.nn.conv2d(self.pool2, kernel, [1, 1, 1, 1], padding='SAME')
-            biases = tf.Variable(tf.constant(0.0, shape=[256], dtype=tf.float32),
+            conv = tf.nn.conv2d(self.pool2, kernel, stru_p['strides'], padding=stru_p['padding'])
+            biases = tf.Variable(tf.constant(0.0, shape=stru_p['biases_shape'], dtype=tf.float32),
                                  trainable=True, name='biases')
             out = tf.nn.bias_add(conv, biases)
             self.conv3_1 = tf.nn.relu(out, name=scope)
@@ -147,10 +155,11 @@ class vgg16:
 
         # conv3_2
         with tf.name_scope('conv3_2') as scope:
-            kernel = tf.Variable(tf.truncated_normal([3, 3, 256, 256], dtype=tf.float32,
+            stru_p = self.net_structure['conv3_2']
+            kernel = tf.Variable(tf.truncated_normal(stru_p['kernel_shape'], dtype=tf.float32,
                                                      stddev=1e-1), name='weights')
-            conv = tf.nn.conv2d(self.conv3_1, kernel, [1, 1, 1, 1], padding='SAME')
-            biases = tf.Variable(tf.constant(0.0, shape=[256], dtype=tf.float32),
+            conv = tf.nn.conv2d(self.conv3_1, kernel, stru_p['strides'], padding=stru_p['padding'])
+            biases = tf.Variable(tf.constant(0.0, shape=stru_p['biases_shape'], dtype=tf.float32),
                                  trainable=True, name='biases')
             out = tf.nn.bias_add(conv, biases)
             self.conv3_2 = tf.nn.relu(out, name=scope)
@@ -158,28 +167,31 @@ class vgg16:
 
         # conv3_3
         with tf.name_scope('conv3_3') as scope:
-            kernel = tf.Variable(tf.truncated_normal([3, 3, 256, 256], dtype=tf.float32,
+            stru_p = self.net_structure['conv3_3']
+            kernel = tf.Variable(tf.truncated_normal(stru_p['kernel_shape'], dtype=tf.float32,
                                                      stddev=1e-1), name='weights')
-            conv = tf.nn.conv2d(self.conv3_2, kernel, [1, 1, 1, 1], padding='SAME')
-            biases = tf.Variable(tf.constant(0.0, shape=[256], dtype=tf.float32),
+            conv = tf.nn.conv2d(self.conv3_2, kernel, stru_p['strides'], padding=stru_p['padding'])
+            biases = tf.Variable(tf.constant(0.0, shape=stru_p['biases_shape'], dtype=tf.float32),
                                  trainable=True, name='biases')
             out = tf.nn.bias_add(conv, biases)
             self.conv3_3 = tf.nn.relu(out, name=scope)
             self.parameters += [kernel, biases]
 
         # pool3
+        stru_p = self.net_structure['pool3']
         self.pool3 = tf.nn.max_pool(self.conv3_3,
-                               ksize=[1, 2, 2, 1],
-                               strides=[1, 2, 2, 1],
-                               padding='SAME',
+                               ksize=stru_p['ksize'],
+                               strides=stru_p['strides'],
+                               padding=stru_p['padding'],
                                name='pool3')
 
         # conv4_1
         with tf.name_scope('conv4_1') as scope:
-            kernel = tf.Variable(tf.truncated_normal([3, 3, 256, 512], dtype=tf.float32,
+            stru_p = self.net_structure['conv4_1']
+            kernel = tf.Variable(tf.truncated_normal(stru_p['kernel_shape'], dtype=tf.float32,
                                                      stddev=1e-1), name='weights')
-            conv = tf.nn.conv2d(self.pool3, kernel, [1, 1, 1, 1], padding='SAME')
-            biases = tf.Variable(tf.constant(0.0, shape=[512], dtype=tf.float32),
+            conv = tf.nn.conv2d(self.pool3, kernel, stru_p['strides'], padding=stru_p['padding'])
+            biases = tf.Variable(tf.constant(0.0, shape=stru_p['biases_shape'], dtype=tf.float32),
                                  trainable=True, name='biases')
             out = tf.nn.bias_add(conv, biases)
             self.conv4_1 = tf.nn.relu(out, name=scope)
@@ -187,10 +199,11 @@ class vgg16:
 
         # conv4_2
         with tf.name_scope('conv4_2') as scope:
-            kernel = tf.Variable(tf.truncated_normal([3, 3, 512, 512], dtype=tf.float32,
+            stru_p = self.net_structure['conv4_2']
+            kernel = tf.Variable(tf.truncated_normal(stru_p['kernel_shape'], dtype=tf.float32,
                                                      stddev=1e-1), name='weights')
-            conv = tf.nn.conv2d(self.conv4_1, kernel, [1, 1, 1, 1], padding='SAME')
-            biases = tf.Variable(tf.constant(0.0, shape=[512], dtype=tf.float32),
+            conv = tf.nn.conv2d(self.conv4_1, kernel, stru_p['strides'], padding=stru_p['padding'])
+            biases = tf.Variable(tf.constant(0.0, shape=stru_p['biases_shape'], dtype=tf.float32),
                                  trainable=True, name='biases')
             out = tf.nn.bias_add(conv, biases)
             self.conv4_2 = tf.nn.relu(out, name=scope)
@@ -198,28 +211,31 @@ class vgg16:
 
         # conv4_3
         with tf.name_scope('conv4_3') as scope:
-            kernel = tf.Variable(tf.truncated_normal([3, 3, 512, 512], dtype=tf.float32,
+            stru_p = self.net_structure['conv4_3']
+            kernel = tf.Variable(tf.truncated_normal(stru_p['kernel_shape'], dtype=tf.float32,
                                                      stddev=1e-1), name='weights')
-            conv = tf.nn.conv2d(self.conv4_2, kernel, [1, 1, 1, 1], padding='SAME')
-            biases = tf.Variable(tf.constant(0.0, shape=[512], dtype=tf.float32),
+            conv = tf.nn.conv2d(self.conv4_2, kernel, stru_p['strides'], padding=stru_p['padding'])
+            biases = tf.Variable(tf.constant(0.0, shape=stru_p['biases_shape'], dtype=tf.float32),
                                  trainable=True, name='biases')
             out = tf.nn.bias_add(conv, biases)
             self.conv4_3 = tf.nn.relu(out, name=scope)
             self.parameters += [kernel, biases]
 
         # pool4
+        stru_p = self.net_structure['pool4']
         self.pool4 = tf.nn.max_pool(self.conv4_3,
-                               ksize=[1, 2, 2, 1],
-                               strides=[1, 2, 2, 1],
-                               padding='SAME',
+                               ksize=stru_p['ksize'],
+                               strides=stru_p['strides'],
+                               padding=stru_p['padding'],
                                name='pool4')
 
         # conv5_1
         with tf.name_scope('conv5_1') as scope:
-            kernel = tf.Variable(tf.truncated_normal([3, 3, 512, 512], dtype=tf.float32,
+            stru_p = self.net_structure['conv5_1']
+            kernel = tf.Variable(tf.truncated_normal(stru_p['kernel_shape'], dtype=tf.float32,
                                                      stddev=1e-1), name='weights')
-            conv = tf.nn.conv2d(self.pool4, kernel, [1, 1, 1, 1], padding='SAME')
-            biases = tf.Variable(tf.constant(0.0, shape=[512], dtype=tf.float32),
+            conv = tf.nn.conv2d(self.pool4, kernel, stru_p['strides'], padding=stru_p['padding'])
+            biases = tf.Variable(tf.constant(0.0, shape=stru_p['biases_shape'], dtype=tf.float32),
                                  trainable=True, name='biases')
             out = tf.nn.bias_add(conv, biases)
             self.conv5_1 = tf.nn.relu(out, name=scope)
@@ -227,10 +243,11 @@ class vgg16:
 
         # conv5_2
         with tf.name_scope('conv5_2') as scope:
-            kernel = tf.Variable(tf.truncated_normal([3, 3, 512, 512], dtype=tf.float32,
+            stru_p = self.net_structure['conv5_2']
+            kernel = tf.Variable(tf.truncated_normal(stru_p['kernel_shape'], dtype=tf.float32,
                                                      stddev=1e-1), name='weights')
-            conv = tf.nn.conv2d(self.conv5_1, kernel, [1, 1, 1, 1], padding='SAME')
-            biases = tf.Variable(tf.constant(0.0, shape=[512], dtype=tf.float32),
+            conv = tf.nn.conv2d(self.conv5_1, kernel, stru_p['strides'], padding=stru_p['padding'])
+            biases = tf.Variable(tf.constant(0.0, shape=stru_p['biases_shape'], dtype=tf.float32),
                                  trainable=True, name='biases')
             out = tf.nn.bias_add(conv, biases)
             self.conv5_2 = tf.nn.relu(out, name=scope)
@@ -238,26 +255,29 @@ class vgg16:
 
         # conv5_3
         with tf.name_scope('conv5_3') as scope:
-            kernel = tf.Variable(tf.truncated_normal([3, 3, 512, 512], dtype=tf.float32,
+            stru_p = self.net_structure['conv5_3']
+            kernel = tf.Variable(tf.truncated_normal(stru_p['kernel_shape'], dtype=tf.float32,
                                                      stddev=1e-1), name='weights')
-            conv = tf.nn.conv2d(self.conv5_2, kernel, [1, 1, 1, 1], padding='SAME')
-            biases = tf.Variable(tf.constant(0.0, shape=[512], dtype=tf.float32),
+            conv = tf.nn.conv2d(self.conv5_2, kernel, stru_p['strides'], padding=stru_p['padding'])
+            biases = tf.Variable(tf.constant(0.0, shape=stru_p['biases_shape'], dtype=tf.float32),
                                  trainable=True, name='biases')
             out = tf.nn.bias_add(conv, biases)
             self.conv5_3 = tf.nn.relu(out, name=scope)
             self.parameters += [kernel, biases]
 
         # pool5
+        stru_p = self.net_structure['pool5']
         self.pool5 = tf.nn.max_pool(self.conv5_3,
-                               ksize=[1, 2, 2, 1],
-                               strides=[1, 2, 2, 1],
-                               padding='SAME',
+                               ksize=stru_p['ksize'],
+                               strides=stru_p['strides'],
+                               padding=stru_p['padding'],
                                name='pool4')
 
     def fc_layers(self):
         # fc1
-        midsize = 1024 #4096 todo here to switch to 4096 size when working with better gpu card
-        neural_reduce_ratio = 16
+        stru_p = self.net_structure['fc']
+        midsize = stru_p['midsize'] #4096 todo here to switch to 4096 size when working with better gpu card
+        neural_reduce_ratio = stru_p['neural_reduce_ratio']
         with tf.name_scope('dropout_parameter'):
             self.dropout_keepprob = tf.placeholder(tf.float32, name='keepprob')
 
@@ -454,8 +474,11 @@ class vgg16:
 
 if __name__ == '__main__':
     # imgs = tf.placeholder(tf.float32, [None, 224, 224, 3])
+    with open('net_structure.json', 'r') as f:
+        net_paras = json.load(f)
+    # print(type(net_paras['conv1_1']['kernel_shape'][0]))
     data = datapreprocess.datacontainer(0.7)
-    vgg = vgg16(data.getimgsize(), data.getlabeldim(), data.getTrainMean())  # 'vgg16_weights.npz'
+    vgg = vgg16(data.getimgsize(), data.getlabeldim(), data.getTrainMean(), net_paras)  # 'vgg16_weights.npz'
 
     start = time.time()
     print(time.strftime('%Y-%m-%d %H:%M:%S'))

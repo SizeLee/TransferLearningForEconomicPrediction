@@ -15,6 +15,7 @@ class EconomicRegression:
         self.regressionG = tf.Graph()
         self.sess = tf.Session(graph=self.regressionG)
         self.parameters = []
+        self.layer_reduce_ratio = 1
         self.fc_layer()
         self.regression_layer()
         self.train_node()
@@ -26,26 +27,31 @@ class EconomicRegression:
 
 
     def fc_layer(self):
+        self.layer_reduce_ratio = 4
         with self.regressionG.as_default():
             with tf.name_scope('input'):
                 self.input_feature = tf.placeholder(tf.float32, [None, self.featureSize], 'feature')
 
             with tf.name_scope('feature_map'):
-                self.fcW = tf.Variable(tf.truncated_normal([self.featureSize, self.featureSize],
+                self.fcW = tf.Variable(tf.truncated_normal([self.featureSize, self.featureSize//self.layer_reduce_ratio],
                                                            dtype=tf.float32,
                                                            stddev=1e-1), name='weights')
-                self.fcb = tf.Variable(tf.constant(1, shape=[self.featureSize], dtype=tf.float32),
+                self.fcb = tf.Variable(tf.constant(1, shape=[self.featureSize//self.layer_reduce_ratio], dtype=tf.float32),
                                        trainable=True, name='biases')
 
                 self.fcl = tf.nn.bias_add(tf.matmul(self.input_feature, self.fcW), self.fcb)
+                
+            ### here to decide linear or non-linear
                 self.fc = tf.nn.relu(self.fcl)
+                # self.fc = self.fcl
+            
             self.parameters += [self.fcW, self.fcb]
         return
 
     def regression_layer(self):
         with self.regressionG.as_default():
             with tf.name_scope('regression'):
-                self.W = tf.Variable(tf.truncated_normal([self.featureSize, 1],
+                self.W = tf.Variable(tf.truncated_normal([self.featureSize//self.layer_reduce_ratio, 1],
                                                     dtype=tf.float32,
                                                     stddev=1e-1), name='weights')
                 self.b = tf.Variable(tf.constant(1, shape=[1], dtype=tf.float32), trainable=True, name='bias')
@@ -60,6 +66,7 @@ class EconomicRegression:
                 self.reg_lambda = tf.placeholder(tf.float32, name='reg_lambda')
                 para_loss = tf.nn.l2_loss(self.fcW) + tf.nn.l2_loss(self.fcb) + tf.nn.l2_loss(self.W) + tf.nn.l2_loss(self.b)
                 self.regression_loss = tf.reduce_mean(tf.square(self.out - self.y))
+                self.r2 = 1 - self.regression_loss/(tf.reduce_mean(tf.square(tf.reduce_mean(self.y) - self.y)))
                 self.loss = self.regression_loss + self.reg_lambda * para_loss
                 optimizer = tf.train.AdamOptimizer()
                 self.train_step = optimizer.minimize(self.loss)
@@ -67,7 +74,8 @@ class EconomicRegression:
             with tf.name_scope('summary'):
                 self.regression_loss_summary = tf.summary.scalar('regression_loss', self.regression_loss)
                 self.loss_summary = tf.summary.scalar('regularized_loss', self.loss)
-                self.whole_summary = tf.summary.merge([self.regression_loss_summary, self.loss_summary])
+                self.r2_summary = tf.summary.scalar('r2', self.r2)
+                self.whole_summary = tf.summary.merge([self.regression_loss_summary, self.loss_summary, self.r2_summary])
 
         return
 
@@ -81,13 +89,18 @@ class EconomicRegression:
         return self.feature_reduce(features_of_a_sample, 'Mean')
 
 
-    def train(self, images_of_samples, y_of_samples, epoch_num, reg_lambda, log_dir, save_weights_filename):
+    def train(self, images_of_samples, y_of_samples, val_imgs, val_ys, epoch_num, reg_lambda, log_dir, y_name, save_weights_filename):
         feature_of_samples = self.feature_map(images_of_samples[0])
         for each in images_of_samples[1:]:
             feature_of_samples = np.vstack((feature_of_samples, self.feature_map(each)))
 
+        val_feature = self.feature_map(val_imgs[0])
+        for each in val_imgs[1:]:
+            val_feature = np.vstack((val_feature, self.feature_map(each)))
+
         self.sess.run(self.init_variables)
-        train_writer = tf.summary.FileWriter(log_dir + '/regression_train', self.sess.graph)
+        train_writer = tf.summary.FileWriter(log_dir + '/regression/%s/train'%y_name, self.sess.graph)
+        val_writer = tf.summary.FileWriter(log_dir + '/regression/%s/val'%y_name)
         for i in range(epoch_num):
             if i % 10 != 9:
                 self.sess.run(self.train_step, feed_dict={self.input_feature: feature_of_samples,
@@ -98,11 +111,15 @@ class EconomicRegression:
                                                  feed_dict={self.input_feature: feature_of_samples,
                                                             self.y: y_of_samples,
                                                             self.reg_lambda: reg_lambda})
+                val_summary = self.sess.run(self.whole_summary, feed_dict={self.input_feature: val_feature,
+                                                                             self.y: val_ys,
+                                                                             self.reg_lambda: reg_lambda})
                 train_writer.add_summary(summary, i)
-                print(i)
-                print(time.strftime('%Y-%m-%d %H:%M:%S'))
-                print(loss)
-                print()
+                val_writer.add_summary(val_summary, i)
+                # print(i)
+                # print(time.strftime('%Y-%m-%d %H:%M:%S'))
+                # print(loss)
+                # print()
 
         train_writer.close()
         self.save_weights(save_weights_filename)
@@ -118,9 +135,9 @@ class EconomicRegression:
         for each in images_of_samples[1:]:
             feature_of_samples = np.vstack((feature_of_samples, self.feature_map(each)))
 
-        y_predict, loss = self.sess.run([self.out, self.regression_loss], feed_dict={self.input_feature: feature_of_samples, 
+        y_predict, loss, r2 = self.sess.run([self.out, self.regression_loss, self.r2], feed_dict={self.input_feature: feature_of_samples, 
                                                                                      self.y: y_of_samples})
-        return y_predict, loss
+        return y_predict, loss, r2
 
     def predict(self, images_of_samples):
         feature_of_samples = self.feature_map(images_of_samples[0])
@@ -149,7 +166,16 @@ if __name__ == '__main__':
     rdc = datapreprocess.RegressionDataContainer(0.7)
     img_mean = np.load('data/img_mean.npz')['arr_0']
     # print(img_mean)
-    myregression = EconomicRegression(rdc.getimgsize(), 3, img_mean, 'net_structure.json', 'tweights.npz')
-    myregression.train(rdc.train_data, rdc.train_y, 1000, 1e-8, 'tflog', 'regression_weights.npz')
-    _, loss = myregression.test_loss(rdc.test_data, rdc.test_y)
-    print('test_loss:', loss)
+    gdpregression = EconomicRegression(rdc.getimgsize(), 3, img_mean, 'net_structure.json', 'tweights.npz')
+    gdpregression.train(rdc.train_data, rdc.train_y[:, 0:1], rdc.test_data, rdc.test_y[:, 0:1], 10000, 0.8, 'tflog', 'gdp', 'gdpregression_weights.npz')
+    # y_predict, loss, r2 = gdpregression.test_loss(rdc.test_data, rdc.test_y[:, 0:1])
+    # print('test_y_label:\n', rdc.test_y[:, 0:1])
+    # print('y_predict:\n', y_predict)
+    # print('gdp test_loss:', loss)
+    # print('gdp test_r2:', r2)
+    faregression = EconomicRegression(rdc.getimgsize(), 3, img_mean, 'net_structure.json', 'tweights.npz')
+    faregression.train(rdc.train_data, rdc.train_y[:, 1:2], rdc.test_data, rdc.test_y[:, 1:2], 10000, 0.8, 'tflog', 'fa', 'faregression_weights.npz')
+    crvregression = EconomicRegression(rdc.getimgsize(), 3, img_mean, 'net_structure.json', 'tweights.npz')
+    crvregression.train(rdc.train_data, rdc.train_y[:, 2:], rdc.test_data, rdc.test_y[:, 2:], 10000, 0.8, 'tflog', 'crv', 'crvregression_weights.npz')
+    print('training done!')
+

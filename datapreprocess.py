@@ -110,25 +110,44 @@ class RegressionDataContainer:
     def __init__(self, train_set_ratio):
         path = 'data/Regression_data'
         img_fold_name = 'imgs'
-        value_file_name = 'value.txt'
+        value_file_name = 'values.txt'
         sample_path = os.listdir(path)
         # print(sample_path)
         self.data = []
         self.y = []
+        delpath = []
         for each_path in sample_path:
             working_path = path + '/' + each_path + '/'
             with open(working_path + value_file_name, 'r') as value_file:
-                y_value = float(value_file.readline())
+                y_mat = []
+                for eachline in value_file:
+                    if eachline == '\n':
+                        break
+                    y_value = float(eachline)
+                    y_mat.append(y_value)
                 # print(y_value)
-                self.y.append(y_value)
+                self.y.append(y_mat)
             imgs_path = os.listdir(working_path + img_fold_name)
             # print(imgs_path)
             imgs = []
+            count = 0
             for each in imgs_path:
-                img = imread(working_path + img_fold_name + '/' + each)
+                try:
+                    img = imread(working_path + img_fold_name + '/' + each)
+                except:
+                    count += 1
+                    print('ignore %d truncated picture(s) in %s' % (count, working_path))
+                    continue
                 imgs.append(img)
-
+            if(len(imgs)==0):
+                print('error in %s' %working_path)
+                del self.y[-1]
+                delpath.append(each_path)
+                continue
             self.data.append(np.array(imgs))
+
+        for each in delpath:
+            sample_path.remove(each)
 
         sample_num = len(self.data)
         shuffle_index = [i for i in range(sample_num)]
@@ -137,11 +156,12 @@ class RegressionDataContainer:
         self.data = [self.data[shuffle_index[i]] for i in range(sample_num)]
         self.y = [self.y[shuffle_index[i]] for i in range(sample_num)]
         self.train_data = self.data[:int(train_set_ratio * sample_num)]
-        self.train_y = np.array(self.y[:int(train_set_ratio * sample_num)]).reshape(-1, 1)
+        self.train_y = np.array(self.y[:int(train_set_ratio * sample_num)])#.reshape(-1, 1)
         self.test_data = self.data[int(train_set_ratio * sample_num):]
-        self.test_y = np.array(self.y[int(train_set_ratio * sample_num):]).reshape(-1, 1)
-        self.y = np.array(self.y).reshape(-1, 1)
+        self.test_y = np.array(self.y[int(train_set_ratio * sample_num):])#.reshape(-1, 1)
+        self.y = np.array(self.y)#.reshape(-1, 1)
         # print(self.y)
+        self.sample_path = [sample_path[shuffle_index[i]] for i in range(sample_num)]
         return
 
     def getimgsize(self):

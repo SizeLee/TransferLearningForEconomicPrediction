@@ -23,6 +23,7 @@ class vgg16:
         self.labeldim = labeldim
         self.net_structure = net_structure
         self.parameters = []
+        self.graph = tf.Graph()
         # batchsize = 2
 
         ###here set dataset node structure
@@ -34,19 +35,20 @@ class vgg16:
         # self.next_element = self.iterator.get_next()
 
         ###here set vgg net structure
-        self.imgs = tf.placeholder(tf.float32, [None, im_size_channel[0], im_size_channel[1], im_size_channel[2]])
-        self.convlayers(imgs_mean)
-        self.fc_layers()
-        self.probs = tf.nn.softmax(self.fc3l)
-        self.probs_distribution = tf.summary.histogram('probs_distribution', self.probs)
+        with self.graph.as_default():
+            self.imgs = tf.placeholder(tf.float32, [None, im_size_channel[0], im_size_channel[1], im_size_channel[2]])
+            self.convlayers(imgs_mean)
+            self.fc_layers()
+            self.probs = tf.nn.softmax(self.fc3l)
+            self.probs_distribution = tf.summary.histogram('probs_distribution', self.probs)
 
         ###here set vgg training node
-        self.init_train_node()
-        self.summary_node()
-        self.init_variables = tf.global_variables_initializer()
+            self.init_train_node()
+            self.summary_node()
+            self.init_variables = tf.global_variables_initializer()
 
         if weights is not None:
-            self.sess = tf.Session()
+            self.sess = tf.Session(graph=self.graph)
             self.load_weights(weights, self.sess)
 
     def summary_node(self):
@@ -321,7 +323,7 @@ class vgg16:
         if self.sess is not None:
             self.sess.close()
 
-        self.sess = tf.Session()
+        self.sess = tf.Session(graph=self.graph)
 
         # Compute for trainround epochs.
         self.sess.run(self.init_variables)

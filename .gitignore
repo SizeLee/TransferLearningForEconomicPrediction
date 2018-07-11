@@ -9,6 +9,7 @@
 *.csv
 *.json
 /data/
+/NewData*/
 *.npz
 *.txt
 

@@ -1,14 +1,14 @@
 {
     "conv1_1":{
-        "kernel_shape": [3, 3, 3, 64],
+        "kernel_shape": [3, 3, 3, 16],
         "strides": [1, 1, 1, 1],
-        "biases_shape": [64],
+        "biases_shape": [16],
         "padding":"SAME"
     },
     "conv1_2":{
-        "kernel_shape": [3, 3, 64, 64],
+        "kernel_shape": [3, 3, 16, 16],
         "strides": [1, 1, 1, 1],
-        "biases_shape": [64],
+        "biases_shape": [16],
         "padding":"SAME"
     },
     "pool1":{
@@ -17,15 +17,15 @@
         "padding":"SAME"
     },
     "conv2_1":{
-        "kernel_shape": [3, 3, 64, 128],
+        "kernel_shape": [3, 3, 16, 32],
         "strides": [1, 1, 1, 1],
-        "biases_shape": [128],
+        "biases_shape": [32],
         "padding":"SAME"
     },
     "conv2_2":{
-        "kernel_shape": [3, 3, 128, 128],
+        "kernel_shape": [3, 3, 32, 32],
         "strides": [1, 1, 1, 1],
-        "biases_shape": [128],
+        "biases_shape": [32],
         "padding":"SAME"
     },
     "pool2":{
@@ -34,21 +34,21 @@
         "padding":"SAME"
     },
     "conv3_1":{
-        "kernel_shape": [3, 3, 128, 256],
+        "kernel_shape": [3, 3, 32, 64],
         "strides": [1, 1, 1, 1],
-        "biases_shape": [256],
+        "biases_shape": [64],
         "padding":"SAME"
     },
     "conv3_2":{
-        "kernel_shape": [3, 3, 256, 256],
+        "kernel_shape": [3, 3, 64, 64],
         "strides": [1, 1, 1, 1],
-        "biases_shape": [256],
+        "biases_shape": [64],
         "padding":"SAME"
     },
     "conv3_3":{
-        "kernel_shape": [3, 3, 256, 256],
+        "kernel_shape": [3, 3, 64, 64],
         "strides": [1, 1, 1, 1],
-        "biases_shape": [256],
+        "biases_shape": [64],
         "padding":"SAME"
     },
     "pool3":{
@@ -57,21 +57,21 @@
         "padding":"SAME"
     },
     "conv4_1":{
-        "kernel_shape": [3, 3, 256, 512],
+        "kernel_shape": [3, 3, 64, 32],
         "strides": [1, 1, 1, 1],
-        "biases_shape": [512],
+        "biases_shape": [32],
         "padding":"SAME"
     },
     "conv4_2":{
-        "kernel_shape": [3, 3, 512, 512],
+        "kernel_shape": [3, 3, 32, 32],
         "strides": [1, 1, 1, 1],
-        "biases_shape": [512],
+        "biases_shape": [32],
         "padding":"SAME"
     },
     "conv4_3":{
-        "kernel_shape": [3, 3, 512, 512],
+        "kernel_shape": [3, 3, 32, 32],
         "strides": [1, 1, 1, 1],
-        "biases_shape": [512],
+        "biases_shape": [32],
         "padding":"SAME"
     },
     "pool4":{
@@ -80,21 +80,21 @@
         "padding":"SAME"
     },
     "conv5_1":{
-        "kernel_shape": [3, 3, 512, 512],
+        "kernel_shape": [3, 3, 32, 16],
         "strides": [1, 1, 1, 1],
-        "biases_shape": [512],
+        "biases_shape": [16],
         "padding":"SAME"
     },
     "conv5_2":{
-        "kernel_shape": [3, 3, 512, 512],
+        "kernel_shape": [3, 3, 16, 16],
         "strides": [1, 1, 1, 1],
-        "biases_shape": [512],
+        "biases_shape": [16],
         "padding":"SAME"
     },
     "conv5_3":{
-        "kernel_shape": [3, 3, 512, 512],
+        "kernel_shape": [3, 3, 16, 16],
         "strides": [1, 1, 1, 1],
-        "biases_shape": [512],
+        "biases_shape": [16],
         "padding":"SAME"
     },
     "pool5":{
@@ -103,7 +103,7 @@
         "padding":"SAME"
     },
     "fc":{
-        "midsize":1024,
+        "midsize":512,
         "neural_reduce_ratio":16
     }
 }
